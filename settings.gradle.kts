@@ -5,4 +5,3 @@ pluginManagement {
 }
 
 rootProject.name = "qupath-gradle-plugin"
-include("plugin")
