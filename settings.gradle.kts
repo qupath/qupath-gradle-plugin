@@ -6,4 +6,3 @@ pluginManagement {
 
 rootProject.name = "qupath-gradle-plugin"
 include("plugin")
-include("conventions")

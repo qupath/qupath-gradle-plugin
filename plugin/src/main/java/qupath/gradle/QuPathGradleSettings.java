@@ -1,9 +1,7 @@
 package qupath.gradle;
 
-import org.gradle.api.GradleException;
 import org.gradle.api.initialization.Settings;
 import org.gradle.api.Plugin;
-import org.gradle.api.Project;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.jetbrains.annotations.NotNull;
@@ -11,6 +9,9 @@ import org.jetbrains.annotations.NotNull;
 import java.net.URI;
 import java.util.Set;
 
+/**
+ * Plugin to configure QuPath-specific settings for a Gradle build.
+ */
 public class QuPathGradleSettings implements Plugin<Settings> {
 
     private static final Logger logger = Logging.getLogger(QuPathGradleSettings.class);
@@ -20,54 +21,21 @@ public class QuPathGradleSettings implements Plugin<Settings> {
 
         addSciJavaRepositories(settings);
 
-        var extension = createExtension(settings);
+        var qupathVersion = createExtension(settings);
+
         var gradle = settings.getGradle();
 
         gradle.settingsEvaluated(s -> {
-            createCatalog(extension, s);
-        });
-
-        gradle.rootProject( p -> {
-            applyToProject(extension, p);
+            createCatalog(qupathVersion, s);
         });
 
     }
 
-    private QuPathExtension createExtension(Settings settings) {
-        var extension = settings.getExtensions().create(
-            "qupathExtension",
-            QuPathExtension.class);
+    private QuPathVersion createExtension(Settings settings) {
+        var extension = settings.getExtensions().create("qupath", QuPathVersion.class);
         // Default catalog name
         extension.getCatalogName().set("libs");
         return extension;
-    }
-
-
-    private void applyToProject(QuPathExtension extension, Project project) {
-        logger.quiet("APPLYING TO PROJECT FROM JAVA");
-        
-        var props = project.getGradle().getExtensions().getExtraProperties();
-
-        if (extension.getAutomaticModule().isPresent())
-            props.set("extension.module", extension.getAutomaticModule().get());
-
-        if (extension.getName().isPresent())
-            props.set("extension.name", extension.getName().get());
-        else
-            throw new GradleException("QuPath extension name must be set");
-
-        if (extension.getVersion().isPresent())
-            props.set("extension.version", extension.getVersion().get());
-        else
-            throw new GradleException("QuPath extension version must be set (e.g. 0.1.0)");
-
-        if (extension.getDescription().isPresent())
-            props.set("extension.description", extension.getDescription().get());
-
-        if (extension.getQupathVersion().isPresent())
-            props.set("qupath.app.version", extension.getQupathVersion().get());
-        else
-            throw new GradleException("QuPath version must be set (e.g. 0.6.0)");
     }
 
     private void addSciJavaRepositories(Settings settings) {
@@ -83,12 +51,18 @@ public class QuPathGradleSettings implements Plugin<Settings> {
         });
     }
 
-    private void createCatalog(QuPathExtension extension, Settings settings) {
+    private void createCatalog(QuPathVersion extension, Settings settings) {
         String catalogName = extension.getCatalogName().getOrNull();
-        if (catalogName == null) {
-            logger.info("Version catalog not created (catalog name is null)");
+        if (catalogName == null || catalogName.isBlank()) {
+            logger.info("Version catalog not created (catalog name is missing)");
             return;
         }
+        String qupathVersion = extension.getVersion().getOrNull();
+        if (qupathVersion == null || qupathVersion.isBlank()) {
+            logger.warn("Version catalog not created (QuPath version is missing)");
+            return;
+        }
+
         var catalogBuilder = settings.getDependencyResolutionManagement().getVersionCatalogs();
         if (catalogBuilder.findByName(catalogName) != null) {
             logger.warn("QuPath version catalog named \"{}\" already exists - no new catalog will be created", catalogName);
@@ -96,7 +70,7 @@ public class QuPathGradleSettings implements Plugin<Settings> {
         }
         catalogBuilder.create(catalogName, catalog -> {
             logger.info("Creating QuPath version catalog named \"{}\"", catalogName);
-            catalog.from("io.github.qupath:qupath-catalog:" + extension.getQupathVersion().get());
+            catalog.from("io.github.qupath:qupath-catalog:" + qupathVersion);
         });
     }
 

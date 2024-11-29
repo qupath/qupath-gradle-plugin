@@ -1,81 +1,82 @@
 import org.gradle.api.attributes.Usage
 import org.gradle.api.file.DuplicatesStrategy
 import org.gradle.api.tasks.Copy
-import org.gradle.api.tasks.bundling.Jar
-import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.external.javadoc.StandardJavadocDocletOptions
 import org.gradle.nativeplatform.MachineArchitecture
 import org.gradle.nativeplatform.OperatingSystemFamily
+import qupath.gradle.QuPathExtension
 import kotlin.jvm.optionals.getOrNull
 
 plugins {
     // Main gradle plugin for building a Java library
     `java-library`
-    groovy
-    // Support writing the extension in Groovy (remove this if you don't want to)
-    // To create a shadow/fat jar that bundle up all dependencies
-    id("com.gradleup.shadow")
     // Include this plugin to avoid downloading JavaCPP dependencies for all platforms
     id("org.bytedeco.gradle-javacpp-platform")
+    // Include this plugin to manage JavaFX dependencies
     id("org.openjfx.javafxplugin")
 }
 
-
-base {
-    archivesName = rootProject.name
-    println("ARCHIVE: ${archivesName.get()}")
-    println(gradle.extra.properties)
-    val requestedVersion = gradle.extra["extension.version"]
-    if (requestedVersion is String) {
-        version = requestedVersion
-    }
-    val requestedDescription = gradle.extra["extension.description"]
-    if (requestedDescription is String) {
-        description = requestedDescription
-    }
-}
-
+/*
+ * Create an extension for easy configuration
+ */
+var qupathExtension = extensions.create("qupathExtension", QuPathExtension::class.java)
 
 /*
- * Manifest info
+ * Set properties that depend upon qupathExtension
  */
-tasks.withType<Jar> {
-    manifest {
-        attributes(
-            mapOf(
-                "Implementation-Title" to project.name,
-                "Implementation-Version" to archiveVersion,
-                "Automatic-Module-Name" to gradle.extra["extension.module"]
-            )
-        )
+afterEvaluate {
+    base {
+        archivesName = qupathExtension.name.get()
+        version = qupathExtension.version.get()
+        description = qupathExtension.description.get()
+        group = qupathExtension.group.get()
     }
 
-    /*
-    * Avoid 'Entry .gitkeep is a duplicate but no duplicate handling strategy has been set.'
-    * when using withSourcesJar()
-    */
-    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    tasks.jar {
+        manifest {
+            attributes(
+                mapOf(
+                    "Implementation-Title" to qupathExtension.name.get(),
+                    "Implementation-Version" to qupathExtension.version.get(),
+                    "Automatic-Module-Name" to qupathExtension.automaticModule.get()
+                )
+            )
+        }
+    }
 }
 
-/**
- * Copy necessary attributes, see
+/*
+ * Avoid problems with .gitkeep
+ */
+tasks.jar {
+    duplicatesStrategy = DuplicatesStrategy.WARN
+}
+
+/*
+ * Handle potential JavaFX trouble when using Gradle Shadow; see
  * - https://github.com/qupath/qupath-extension-template/issues/9
  */
-configurations.shadow {
-    attributes {
-        attribute(
-            Usage.USAGE_ATTRIBUTE, objects.named(
-                Usage::class.java,
-            Usage.JAVA_RUNTIME))
-        attribute(
-            OperatingSystemFamily.OPERATING_SYSTEM_ATTRIBUTE,
-            objects.named(OperatingSystemFamily::class.java, "org.gradle.native.operatingSystem"))
-        attribute(
-            MachineArchitecture.ARCHITECTURE_ATTRIBUTE,
-            objects.named(MachineArchitecture::class.java, "org.gradle.native.architecture"))
+val usingShadowJar = project.configurations.names.contains("shadow")
+if (usingShadowJar) {
+    configurations.named("shadow") {
+        attributes {
+            attribute(
+                Usage.USAGE_ATTRIBUTE, objects.named(
+                    Usage::class.java,
+                    Usage.JAVA_RUNTIME
+                )
+            )
+            attribute(
+                OperatingSystemFamily.OPERATING_SYSTEM_ATTRIBUTE,
+                objects.named(OperatingSystemFamily::class.java, "org.gradle.native.operatingSystem")
+            )
+            attribute(
+                MachineArchitecture.ARCHITECTURE_ATTRIBUTE,
+                objects.named(MachineArchitecture::class.java, "org.gradle.native.architecture")
+            )
+        }
     }
 }
-
 
 /*
  * Copy the LICENSE file into the jar... if we have one (we should!)
@@ -97,15 +98,33 @@ tasks.register<Copy>("copyDependencies") {
     into("build/libs")
 }
 
-
+/*
+ * Set the toolchain if we know the required version.
+ * Ensure we include sources and javadocs when building.
+ */
 java {
+    val jdkVersion = findRequiredVersionInCatalog("jdk")
+    if (!jdkVersion.isNullOrEmpty()) {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(jdkVersion)
+        }
+    }
     withSourcesJar()
     withJavadocJar()
 }
 
+/*
+ * Set the JavaFX version if we can find it in a version catalog,
+ * and include the 'standard' modules required by QuPath.
+ */
 javafx {
-    if (project.configurations.names.contains("shadow"))
+    val jfxVersion = findRequiredVersionInCatalog("javafx")
+    if (!jfxVersion.isNullOrEmpty()) {
+        version = jfxVersion
+    }
+    if (usingShadowJar) {
         configuration = "shadow"
+    }
     modules = listOf(
         "javafx.base",
         "javafx.controls",
@@ -117,43 +136,15 @@ javafx {
     )
 }
 
-// Try to get JDK and JavaFX versions from the version catalog
-val libs = versionCatalogs.find("libs").getOrNull()
-if (libs is VersionCatalog) {
-    println("Using version catalog: ${libs.name}")
-    val jdkVersion = libs.findVersion("jdk").getOrNull()?.requiredVersion
-    if (!jdkVersion.isNullOrEmpty()) {
-        java {
-            toolchain {
-                languageVersion = JavaLanguageVersion.of(libs.findVersion("jdk").get().requiredVersion)
-            }
-        }
-    }
-    val jfxVersion = libs.findVersion("javafx").getOrNull()?.requiredVersion
-    if (!jfxVersion.isNullOrEmpty()) {
-        javafx {
-            version = jfxVersion
-        }
-    }
-}
-
 /*
  * Create javadocs for all modules/packages in one place.
  * Use -PstrictJavadoc=true to fail on error with doclint (which is rather strict).
  */
-tasks.withType<Javadoc> {
-    options.encoding = "UTF-8"
+tasks.javadoc {
     val strictJavadoc = providers.gradleProperty("strictJavadoc").getOrElse("false")
     if ("true" == strictJavadoc) {
         (options as StandardJavadocDocletOptions).addStringOption("Xdoclint:none", "-quiet")
     }
-}
-
-/*
- * Specify that the encoding should be UTF-8 for source files
- */
-tasks.compileJava {
-    options.encoding = "UTF-8"
 }
 
 /*
@@ -163,16 +154,18 @@ tasks.test {
     useJUnitPlatform()
 }
 
-// Looks redundant to include this here and in settings.gradle.kts,
-// but helps overcome some gradle trouble when including this as a subproject
-// within QuPath itself (which is useful during development).
+/*
+ * Ensure we can access the required repositories.
+ */
 repositories {
     // Add this if you need access to dependencies only installed locally
-    //  mavenLocal()
+    if ("true" == providers.gradleProperty("use-maven-local").getOrElse("false")) {
+        mavenLocal()
+    }
 
     mavenCentral()
 
-    // Add scijava - which is where QuPath's jars are hosted
+    // Add SciJava - which is where QuPath's jars are hosted
     maven {
         url = uri("https://maven.scijava.org/content/repositories/releases")
     }
@@ -181,4 +174,19 @@ repositories {
         url = uri("https://maven.scijava.org/content/repositories/snapshots")
     }
 
+}
+
+/**
+ * Check all version catalogs for the required version of a library
+ */
+fun findRequiredVersionInCatalog(name: String): String? {
+    versionCatalogs.forEach { catalog ->
+        val version = catalog.findVersion(name).getOrNull()?.requiredVersion
+        logger.debug("Found version for {} in {}: {}", name, catalog.name, version)
+        if (!version.isNullOrEmpty()) {
+            return version
+        }
+    }
+    logger.warn("No version found for {} in any catalogs", name)
+    return null
 }
