@@ -7,7 +7,7 @@ plugins {
 
 base {
     group = "io.github.qupath"
-    version = "0.1.0"
+    version = "0.1.1-SNAPSHOT"
     description = "Gradle plugin for developing QuPath extensions"
 }
 
@@ -55,8 +55,7 @@ publishing {
     }
 
     publications {
-        create<MavenPublication>("mavenJava") {
-            from(components["java"])
+        create<MavenPublication>("pluginMaven") {
             pom {
                 licenses {
                     license {
