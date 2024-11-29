@@ -1,6 +1,6 @@
 plugins {
     `java-gradle-plugin`
-    kotlin("jvm")
+    `kotlin-dsl`
 }
 
 repositories {
@@ -12,6 +12,10 @@ repositories {
 
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
+
+    implementation("org.bytedeco:gradle-javacpp:1.5.10")
+    implementation("org.openjfx:javafx-plugin:0.1.0")
+    implementation("com.gradleup.shadow:shadow-gradle-plugin:8.3.5")
 }
 
 gradlePlugin {

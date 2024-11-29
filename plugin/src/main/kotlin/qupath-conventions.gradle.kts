@@ -49,6 +49,12 @@ tasks.withType<Jar> {
             )
         )
     }
+
+    /*
+    * Avoid 'Entry .gitkeep is a duplicate but no duplicate handling strategy has been set.'
+    * when using withSourcesJar()
+    */
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
 }
 
 /**
@@ -91,9 +97,7 @@ tasks.register<Copy>("copyDependencies") {
     into("build/libs")
 }
 
-/*
- * Ensure compatibility with the same Java version of QuPath, and include sources and javadocs when building.
- */
+
 java {
     withSourcesJar()
     withJavadocJar()
@@ -150,14 +154,6 @@ tasks.withType<Javadoc> {
  */
 tasks.compileJava {
     options.encoding = "UTF-8"
-}
-
-/*
- * Avoid 'Entry .gitkeep is a duplicate but no duplicate handling strategy has been set.'
- * when using withSourcesJar()
- */
-tasks.withType<Jar> {
-    duplicatesStrategy = DuplicatesStrategy.INCLUDE
 }
 
 /*
