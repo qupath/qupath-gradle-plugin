@@ -7,7 +7,7 @@ plugins {
 
 base {
     group = "io.github.qupath"
-    version = "0.1.0-SNAPSHOT"
+    version = "0.1.0"
     description = "Gradle plugin for developing QuPath extensions"
 }
 
