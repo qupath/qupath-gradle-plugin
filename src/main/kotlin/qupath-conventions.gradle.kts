@@ -34,13 +34,18 @@ afterEvaluate {
 
     tasks.jar {
         manifest {
-            attributes(
-                mapOf(
-                    "Implementation-Title" to qupathExtension.name.get(),
-                    "Implementation-Version" to qupathExtension.version.get(),
-                    "Automatic-Module-Name" to qupathExtension.automaticModule.get()
-                )
+            // Core manifest attributes
+            val attributeMap = mutableMapOf(
+                "Implementation-Title" to qupathExtension.name.get(),
+                "Implementation-Version" to qupathExtension.version.get(),
+                "Automatic-Module-Name" to qupathExtension.automaticModule.get()
             )
+            // Store QuPath version if we can find it
+            var qupathVersion = findRequiredVersionInCatalog("qupath")
+            if (!qupathVersion.isNullOrBlank())
+                attributeMap["QuPath-Version"] = qupathVersion
+
+            attributes(attributeMap)
         }
     }
 }
@@ -142,7 +147,7 @@ javafx {
  */
 tasks.javadoc {
     val strictJavadoc = providers.gradleProperty("strictJavadoc").getOrElse("false")
-    if ("true" == strictJavadoc) {
+    if ("true" != strictJavadoc) {
         (options as StandardJavadocDocletOptions).addStringOption("Xdoclint:none", "-quiet")
     }
 }

@@ -7,6 +7,7 @@ import org.gradle.api.logging.Logging;
 import org.jetbrains.annotations.NotNull;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -71,7 +72,27 @@ public class QuPathGradleSettings implements Plugin<Settings> {
         catalogBuilder.create(catalogName, catalog -> {
             logger.info("Creating QuPath version catalog named \"{}\"", catalogName);
             catalog.from("io.github.qupath:qupath-catalog:" + qupathVersion);
+
+            if (addQuPathToCatalog(qupathVersion)) {
+                catalog.version("qupath", qupathVersion);
+                catalog.library("qupath.gui.fx", "io.github.qupath", "qupath-gui-fx").versionRef("qupath");
+                catalog.library("qupath.core", "io.github.qupath", "qupath-core").versionRef("qupath");
+                catalog.library("qupath.core.processing", "io.github.qupath", "qupath-core-processing").versionRef("qupath");
+                catalog.bundle("qupath", List.of("qupath.gui.fx", "qupath.core", "qupath.core.processing"));
+                }
         });
+    }
+
+    /**
+     * Before QuPath v0.6.0, the versions for the QuPath jars weren't included in the catalog -
+     * so we need to add these here
+     * @param qupathVersion the QuPath version, e.g. "0.5.2"
+     * @return
+     */
+    private static boolean addQuPathToCatalog(String qupathVersion) {
+        return qupathVersion.startsWith("0.4") ||
+                qupathVersion.startsWith("0.5") ||
+                Set.of("0.6.0-rc1", "0.6.0-rc2", "0.6.0-rc3").contains(qupathVersion);
     }
 
 }
