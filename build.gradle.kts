@@ -7,13 +7,17 @@ plugins {
 
 base {
     group = "io.github.qupath"
-    version = "0.1.1-SNAPSHOT"
+    version = "0.2.0-SNAPSHOT"
     description = "Gradle plugin for developing QuPath extensions"
 }
 
 java {
     withSourcesJar()
     withJavadocJar()
+
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(11)
+    }
 }
 
 repositories {
