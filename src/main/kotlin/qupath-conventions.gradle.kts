@@ -108,7 +108,8 @@ tasks.register<Copy>("copyDependencies") {
  * Ensure we include sources and javadocs when building.
  */
 java {
-    val jdkVersion = findRequiredVersionInCatalog("jdk")
+    // Java typically added
+    var jdkVersion = findToolchainVersion()
     if (!jdkVersion.isNullOrEmpty()) {
         toolchain {
             languageVersion = JavaLanguageVersion.of(jdkVersion)
@@ -116,6 +117,26 @@ java {
     }
     withSourcesJar()
     withJavadocJar()
+}
+
+/**
+ * Work out which Java version to use for the build
+ */
+fun findToolchainVersion(): String? {
+    // Try Gradle property
+    var toolchainVersion = providers.gradleProperty("toolchain").orNull
+    if (!toolchainVersion.isNullOrEmpty()) {
+        println("Using toolchain version $toolchainVersion from gradle property")
+        return toolchainVersion
+    }
+    // Try System property
+    toolchainVersion = System.getProperty("toolchain")
+    if (!toolchainVersion.isNullOrEmpty()) {
+        println("Using toolchain version $toolchainVersion from system property")
+        return toolchainVersion
+    }
+    // Default to version catalog
+    return findRequiredVersionInCatalog("jdk")
 }
 
 /*
