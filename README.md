@@ -66,9 +66,10 @@ First, first add the shadow plugin, e.g.:
 
 ```kotlin
 plugins {
-    id("qupath-conventions")
     // To create a shadow/fat jar that bundle up all dependencies
+    // Warning: the order (shadow then qupath-conventions) matters
     id("com.gradleup.shadow") version "8.3.5"
+    id("qupath-conventions")
 }
 ```
 
